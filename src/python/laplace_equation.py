@@ -10,8 +10,8 @@ from opencmiss.iron import iron
 #-----------------------------------------------------------------------------------------------------------
 
 height = 1.0
-width = 1.0
-length = 1.0
+width = 2.0
+length = 3.0
 
 (coordinateSystemUserNumber,
     regionUserNumber,
@@ -33,18 +33,23 @@ numberGlobalZElements = 1
 # DIAGNOSTICS AND COMPUTATIONAL NODE INFORMATION
 #-----------------------------------------------------------------------------------------------------------
 
-iron.DiagnosticsSetOn(iron.DiagnosticTypes.IN,[1,2,3,4,5],"Diagnostics",["DOMAIN_MAPPINGS_LOCAL_FROM_GLOBAL_CALCULATE"])
+worldRegion = iron.Region()
+iron.Context.WorldRegionGet(worldRegion)
+
+iron.DiagnosticsSetOn(iron.DiagnosticTypes.IN,[1,2,3,4,5],"Diagnostics",["Laplace_FiniteElementCalculate"])
 
 # Get the computational nodes information
-numberOfComputationalNodes = iron.ComputationalNumberOfNodesGet()
-computationalNodeNumber = iron.ComputationalNodeNumberGet()
+computationEnvironment = iron.ComputationEnvironment()
+iron.Context.ComputationEnvironmentGet(computationEnvironment)
+numberOfComputationalNodes = computationEnvironment.NumberOfWorldNodesGet()
+computationalNodeNumber = computationEnvironment.WorldNodeNumberGet()
 
 #-----------------------------------------------------------------------------------------------------------
 #COORDINATE SYSTEM
 #-----------------------------------------------------------------------------------------------------------
 
 coordinateSystem = iron.CoordinateSystem()
-coordinateSystem.CreateStart(coordinateSystemUserNumber)
+coordinateSystem.CreateStart(coordinateSystemUserNumber,iron.Context)
 coordinateSystem.dimension = 3
 coordinateSystem.CreateFinish()
 
@@ -52,8 +57,8 @@ coordinateSystem.CreateFinish()
 #REGION
 #-----------------------------------------------------------------------------------------------------------
 region = iron.Region()
-region.CreateStart(regionUserNumber,iron.WorldRegion)
-region.label = "laplace_equation"
+region.CreateStart(regionUserNumber,worldRegion)
+region.label = "LaplaceEquation"
 region.coordinateSystem = coordinateSystem
 region.CreateFinish()
 
@@ -62,7 +67,7 @@ region.CreateFinish()
 #-----------------------------------------------------------------------------------------------------------
 
 basis = iron.Basis()
-basis.CreateStart(basisUserNumber)
+basis.CreateStart(basisUserNumber,iron.Context)
 basis.type = iron.BasisTypes.LAGRANGE_HERMITE_TP
 basis.numberOfXi = 3
 basis.interpolationXi = [iron.BasisInterpolationSpecifications.LINEAR_LAGRANGE]*3
@@ -152,7 +157,7 @@ problem = iron.Problem()
 problemSpecification = [iron.ProblemClasses.CLASSICAL_FIELD,
         iron.ProblemTypes.LAPLACE_EQUATION,
         iron.ProblemSubtypes.STANDARD_LAPLACE]
-problem.CreateStart(problemUserNumber, problemSpecification)
+problem.CreateStart(problemUserNumber, iron.Context, problemSpecification)
 problem.CreateFinish()
 
 # Create control loops
@@ -218,21 +223,21 @@ problem.Solve()
 #-----------------------------------------------------------------------------------------------------------
 
 # Export results
-baseName = "laplace_equation"
+baseName = "LaplaceEquation"
 dataFormat = "PLAIN_TEXT"
 
 fml = iron.FieldMLIO()
 fml.OutputCreate(mesh, "", baseName, dataFormat)
 fml.OutputAddFieldNoType(baseName+".geometric", dataFormat, geometricField,iron.FieldVariableTypes.U, iron.FieldParameterSetTypes.VALUES)
 fml.OutputAddFieldNoType(baseName+".phi", dataFormat, dependentField,iron.FieldVariableTypes.U, iron.FieldParameterSetTypes.VALUES)
-fml.OutputWrite("laplace_equation.xml")
+fml.OutputWrite("LaplaceEquation.xml")
 fml.Finalise()
 
 fields = iron.Fields()
 fields.CreateRegion(region)
-fields.NodesExport("laplace_equation","FORTRAN")
-fields.ElementsExport("laplace_equation","FORTRAN")
+fields.NodesExport("LaplaceEquation","FORTRAN")
+fields.ElementsExport("LaplaceEquation","FORTRAN")
 fields.Finalise()
 
 # Finalise OpenCMISS-Iron
-iron.Finalise()
+iron.Finalise(iron.Context)
