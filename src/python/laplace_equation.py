@@ -1,107 +1,165 @@
 #!/usr/bin/env python
 
-# Intialise OpenCMISS-Iron
-from opencmiss.iron import iron
+import sys
 
-#parameters.parse()
+# Intialise OpenCMISS
+from opencmiss.opencmiss import OpenCMISS_Python as oc
 
 #-----------------------------------------------------------------------------------------------------------
 # SET PROBLEM PARAMETERS
 #-----------------------------------------------------------------------------------------------------------
 
-height = 1.0
-width = 1.0
-length = 1.0
+HEIGHT = 1.0
+WIDTH = 1.0
+LENGTH = 1.0
 
-(coordinateSystemUserNumber,
-    regionUserNumber,
-    basisUserNumber,
-    generatedMeshUserNumber,
-    meshUserNumber,
-    decompositionUserNumber,
-    geometricFieldUserNumber,
-    equationsSetFieldUserNumber,
-    dependentFieldUserNumber,
-    equationsSetUserNumber,
-    problemUserNumber) = range(1,12)
+(CONTEXT_USER_NUMBER,
+ COORDINATE_SYSTEM_USER_NUMBER,
+ REGION_USER_NUMBER,
+ BASIS_USER_NUMBER,
+ GENERATED_MESH_USER_NUMBER,
+ MESH_USER_NUMBER,
+ DECOMPOSITION_USER_NUMBER,
+ DECOMPOSER_USER_NUMBER,
+ GEOMETRIC_FIELD_USER_NUMBER,
+ EQUATIONS_SET_FIELD_USER_NUMBER,
+ DEPENDENT_FIELD_USER_NUMBER,
+ EQUATIONS_SET_USER_NUMBER,
+ PROBLEM_USER_NUMBER) = range(1,14)
 
-numberGlobalXElements = 1
-numberGlobalYElements = 3
-numberGlobalZElements = 1
+NUMBER_OF_GAUSS_XI = 2
+
+numberOfGlobalXElements = 1
+numberOfGlobalYElements = 3
+numberOfGlobalZElements = 1
+
+# Override with command line arguments if need be
+if len(sys.argv) > 1:
+    if len(sys.argv) > 4:
+        sys.exit('ERROR: too many arguments- currently only accepting up to 3 options: numberOfGlobalXElements numberOfGlobalYElements numberOfGlobalZElements')
+        numberOfGlobalXElementsnumberOfGlobalXElements = int(sys.argv[1])
+    if len(sys.argv) > 2:
+        numberOfGlobalYElements = int(sys.argv[2])
+    if len(sys.argv) > 3:
+        numberOfGlobalZElements = int(sys.argv[3])
+
+if (numberOfGlobalZElements >= 0):
+    if (numberOfGlobalYElements >= 0):
+        if (numberOfGlobalXElements >= 0):
+            if (numberOfGlobalZElements == 0):
+                if(numberOfGlobalYElements == 0):
+                    numberOfDimensions = 1
+                else:
+                    numberOfDimensions = 2
+            else:
+                numberOfDimensions = 3
+        else:
+            sys.exit('ERROR: number of global X elements must be greater than 0.')
+    else:
+        sys.exit('ERROR: number of global Y elements must be greater than 0.')
+else:
+    sys.exit('ERROR: number of global Z elements must be greater than 0.')
 
 #-----------------------------------------------------------------------------------------------------------
 # DIAGNOSTICS AND COMPUTATIONAL NODE INFORMATION
 #-----------------------------------------------------------------------------------------------------------
 
-iron.DiagnosticsSetOn(iron.DiagnosticTypes.IN,[1,2,3,4,5],"Diagnostics",["DOMAIN_MAPPINGS_LOCAL_FROM_GLOBAL_CALCULATE"])
+# Create a context for the example
+context = oc.Context()
+context.Create(CONTEXT_USER_NUMBER)
+
+# Get the world region
+worldRegion = oc.Region()
+context.WorldRegionGet(worldRegion)
+
+#oc.DiagnosticsSetOn(oc.DiagnosticTypes.IN,[1,2,3,4,5],"Diagnostics",["Laplace_FiniteElementCalculate"])
 
 # Get the computational nodes information
-numberOfComputationalNodes = iron.ComputationalNumberOfNodesGet()
-computationalNodeNumber = iron.ComputationalNodeNumberGet()
+computationEnvironment = oc.ComputationEnvironment()
+context.ComputationEnvironmentGet(computationEnvironment)
+
+worldWorkGroup = oc.WorkGroup()
+computationEnvironment.WorldWorkGroupGet(worldWorkGroup)
+numberOfComputationalNodes = worldWorkGroup.NumberOfGroupNodesGet()
+computationalNodeNumber = worldWorkGroup.GroupNodeNumberGet()
 
 #-----------------------------------------------------------------------------------------------------------
 #COORDINATE SYSTEM
 #-----------------------------------------------------------------------------------------------------------
 
-coordinateSystem = iron.CoordinateSystem()
-coordinateSystem.CreateStart(coordinateSystemUserNumber)
-coordinateSystem.dimension = 3
+coordinateSystem = oc.CoordinateSystem()
+coordinateSystem.CreateStart(COORDINATE_SYSTEM_USER_NUMBER,context)
+coordinateSystem.DimensionSet(numberOfDimensions)
 coordinateSystem.CreateFinish()
 
 #-----------------------------------------------------------------------------------------------------------
 #REGION
 #-----------------------------------------------------------------------------------------------------------
-region = iron.Region()
-region.CreateStart(regionUserNumber,iron.WorldRegion)
-region.label = "laplace_equation"
-region.coordinateSystem = coordinateSystem
+region = oc.Region()
+region.CreateStart(REGION_USER_NUMBER,worldRegion)
+region.LabelSet("LaplaceEquation")
+region.CoordinateSystemSet(coordinateSystem)
 region.CreateFinish()
 
 #-----------------------------------------------------------------------------------------------------------
 #BASIS
 #-----------------------------------------------------------------------------------------------------------
 
-basis = iron.Basis()
-basis.CreateStart(basisUserNumber)
-basis.type = iron.BasisTypes.LAGRANGE_HERMITE_TP
-basis.numberOfXi = 3
-basis.interpolationXi = [iron.BasisInterpolationSpecifications.LINEAR_LAGRANGE]*3
-basis.quadratureNumberOfGaussXi = [2]*3
+basis = oc.Basis()
+basis.CreateStart(BASIS_USER_NUMBER,context)
+basis.TypeSet(oc.BasisTypes.LAGRANGE_HERMITE_TP)
+basis.NumberOfXiSet(numberOfDimensions)
+basis.InterpolationXiSet([oc.BasisInterpolationSpecifications.LINEAR_LAGRANGE]*numberOfDimensions)
+basis.QuadratureNumberOfGaussXiSet([NUMBER_OF_GAUSS_XI]*numberOfDimensions)
 basis.CreateFinish()
 
 #-----------------------------------------------------------------------------------------------------------
 #MESH
 #-----------------------------------------------------------------------------------------------------------
-generatedMesh = iron.GeneratedMesh()
-generatedMesh.CreateStart(generatedMeshUserNumber,region)
-generatedMesh.type = iron.GeneratedMeshTypes.REGULAR
-generatedMesh.basis = [basis]
-generatedMesh.extent = [width,height,length]
-generatedMesh.numberOfElements = [numberGlobalXElements,numberGlobalYElements,numberGlobalZElements]
-
-mesh = iron.Mesh()
-generatedMesh.CreateFinish(meshUserNumber,mesh)
+generatedMesh = oc.GeneratedMesh()
+generatedMesh.CreateStart(GENERATED_MESH_USER_NUMBER,region)
+generatedMesh.TypeSet(oc.GeneratedMeshTypes.REGULAR)
+generatedMesh.BasisSet([basis])
+if (numberOfDimensions == 1):
+    generatedMesh.ExtentSet([WIDTH])
+    generatedMesh.NumberOfElementsSet([numberOfGlobalXElements])
+elif (numberOfDimensions == 2):
+    generatedMesh.ExtentSet([WIDTH,HEIGHT])
+    generatedMesh.NumberOfElementsSet([numberOfGlobalXElements,numberOfGlobalYElements])
+elif (numberOfDimensions == 3):
+    generatedMesh.ExtentSet([WIDTH,HEIGHT,LENGTH])
+    generatedMesh.NumberOfElementsSet([numberOfGlobalXElements,numberOfGlobalYElements,numberOfGlobalZElements])
+else:
+    sys.exit('ERROR: invalid number of dimensions.')
+mesh = oc.Mesh()
+generatedMesh.CreateFinish(MESH_USER_NUMBER,mesh)
 
 #-----------------------------------------------------------------------------------------------------------
 #MESH DECOMPOSITION
 #-----------------------------------------------------------------------------------------------------------
 
-decomposition = iron.Decomposition()
-decomposition.CreateStart(decompositionUserNumber,mesh)
-decomposition.type = iron.DecompositionTypes.CALCULATED
-decomposition.numberOfDomains = numberOfComputationalNodes
+decomposition = oc.Decomposition()
+decomposition.CreateStart(DECOMPOSITION_USER_NUMBER,mesh)
 decomposition.CreateFinish()
+
+#-----------------------------------------------------------------------------------------------------------
+#DECOMPOSER
+#-----------------------------------------------------------------------------------------------------------
+
+decomposer = oc.Decomposer()
+decomposer.CreateStart(DECOMPOSER_USER_NUMBER,worldRegion,worldWorkGroup)
+decompositionIndex = decomposer.DecompositionAdd(decomposition)
+decomposer.CreateFinish()
 
 #-----------------------------------------------------------------------------------------------------------
 #GEOMETRIC FIELD
 #-----------------------------------------------------------------------------------------------------------
 
-geometricField = iron.Field()
-geometricField.CreateStart(geometricFieldUserNumber,region)
-geometricField.meshDecomposition = decomposition
-geometricField.ComponentMeshComponentSet(iron.FieldVariableTypes.U,1,1)
-geometricField.ComponentMeshComponentSet(iron.FieldVariableTypes.U,2,1)
-geometricField.ComponentMeshComponentSet(iron.FieldVariableTypes.U,3,1)
+geometricField = oc.Field()
+geometricField.CreateStart(GEOMETRIC_FIELD_USER_NUMBER,region)
+geometricField.DecompositionSet(decomposition)
+for dimensionIdx in range(1,numberOfDimensions+1):
+    geometricField.ComponentMeshComponentSet(oc.FieldVariableTypes.U,dimensionIdx,1)
 geometricField.CreateFinish()
 
 # Set geometry from the generated mesh
@@ -112,47 +170,49 @@ generatedMesh.GeometricParametersCalculate(geometricField)
 #-----------------------------------------------------------------------------------------------------------
 
 # Create standard Laplace equations set
-equationsSetField = iron.Field()
-equationsSet = iron.EquationsSet()
-equationsSetSpecification = [iron.EquationsSetClasses.CLASSICAL_FIELD,
-        iron.EquationsSetTypes.LAPLACE_EQUATION,
-        iron.EquationsSetSubtypes.STANDARD_LAPLACE]
-equationsSet.CreateStart(equationsSetUserNumber,region,geometricField,
-        equationsSetSpecification,equationsSetFieldUserNumber,equationsSetField)
+equationsSetField = oc.Field()
+equationsSet = oc.EquationsSet()
+equationsSetSpecification = [oc.EquationsSetClasses.CLASSICAL_FIELD,
+        oc.EquationsSetTypes.LAPLACE_EQUATION,
+        oc.EquationsSetSubtypes.STANDARD_LAPLACE]
+equationsSet.CreateStart(EQUATIONS_SET_USER_NUMBER,region,geometricField,
+        equationsSetSpecification,EQUATIONS_SET_FIELD_USER_NUMBER,equationsSetField)
 equationsSet.CreateFinish()
 
 #-----------------------------------------------------------------------------------------------------------
 #DEPENDENT FIELD
 #-----------------------------------------------------------------------------------------------------------
 
-dependentField = iron.Field()
-equationsSet.DependentCreateStart(dependentFieldUserNumber,dependentField)
-dependentField.DOFOrderTypeSet(iron.FieldVariableTypes.U,iron.FieldDOFOrderTypes.SEPARATED)
-dependentField.DOFOrderTypeSet(iron.FieldVariableTypes.DELUDELN,iron.FieldDOFOrderTypes.SEPARATED)
+dependentField = oc.Field()
+equationsSet.DependentCreateStart(DEPENDENT_FIELD_USER_NUMBER,dependentField)
+dependentField.DOFOrderTypeSet(oc.FieldVariableTypes.U,oc.FieldDOFOrderTypes.SEPARATED)
+dependentField.DOFOrderTypeSet(oc.FieldVariableTypes.DELUDELN,oc.FieldDOFOrderTypes.SEPARATED)
 equationsSet.DependentCreateFinish()
 
 # Initialise dependent field
-dependentField.ComponentValuesInitialiseDP(iron.FieldVariableTypes.U,iron.FieldParameterSetTypes.VALUES,1,0.5)
+dependentField.ComponentValuesInitialiseDP(oc.FieldVariableTypes.U,oc.FieldParameterSetTypes.VALUES,1,0.5)
 
 #-----------------------------------------------------------------------------------------------------------
 # EQUATIONS
 #-----------------------------------------------------------------------------------------------------------
 
-equations = iron.Equations()
+equations = oc.Equations()
 equationsSet.EquationsCreateStart(equations)
-equations.sparsityType = iron.EquationsSparsityTypes.SPARSE
-equations.outputType = iron.EquationsOutputTypes.NONE
+equations.SparsityTypeSet(oc.EquationsSparsityTypes.SPARSE)
+#equations.OutputTypeSet(oc.EquationsOutputTypes.NONE)
+#equations.OutputTypeSet(oc.EquationsOutputTypes.MATRIX)
+equations.OutputTypeSet(oc.EquationsOutputTypes.ELEMENT_MATRIX)
 equationsSet.EquationsCreateFinish()
 
 #-----------------------------------------------------------------------------------------------------------
 #PROBLEM
 #-----------------------------------------------------------------------------------------------------------
 
-problem = iron.Problem()
-problemSpecification = [iron.ProblemClasses.CLASSICAL_FIELD,
-        iron.ProblemTypes.LAPLACE_EQUATION,
-        iron.ProblemSubtypes.STANDARD_LAPLACE]
-problem.CreateStart(problemUserNumber, problemSpecification)
+problem = oc.Problem()
+problemSpecification = [oc.ProblemClasses.CLASSICAL_FIELD,
+        oc.ProblemTypes.LAPLACE_EQUATION,
+        oc.ProblemSubtypes.STANDARD_LAPLACE]
+problem.CreateStart(PROBLEM_USER_NUMBER,context,problemSpecification)
 problem.CreateFinish()
 
 # Create control loops
@@ -164,13 +224,14 @@ problem.ControlLoopCreateFinish()
 #-----------------------------------------------------------------------------------------------------------
 
 # Create problem solver
-solver = iron.Solver()
+solver = oc.Solver()
 problem.SolversCreateStart()
-problem.SolverGet([iron.ControlLoopIdentifiers.NODE],1,solver)
-solver.outputType = iron.SolverOutputTypes.SOLVER
-solver.linearType = iron.LinearSolverTypes.ITERATIVE
-solver.linearIterativeAbsoluteTolerance = 1.0E-12
-solver.linearIterativeRelativeTolerance = 1.0E-12
+problem.SolverGet([oc.ControlLoopIdentifiers.NODE],1,solver)
+#solver.OutputTypeSet(oc.SolverOutputTypes.SOLVER)
+solver.OutputTypeSet(oc.SolverOutputTypes.MATRIX)
+solver.LinearTypeSet(oc.LinearSolverTypes.ITERATIVE)
+solver.LinearIterativeAbsoluteToleranceSet(1.0E-12)
+solver.LinearIterativeRelativeToleranceSet(1.0E-12)
 problem.SolversCreateFinish()
 
 #-----------------------------------------------------------------------------------------------------------
@@ -178,12 +239,12 @@ problem.SolversCreateFinish()
 #-----------------------------------------------------------------------------------------------------------
 
 # Create solver equations and add equations set to solver equations
-solver = iron.Solver()
-solverEquations = iron.SolverEquations()
+solver = oc.Solver()
+solverEquations = oc.SolverEquations()
 problem.SolverEquationsCreateStart()
-problem.SolverGet([iron.ControlLoopIdentifiers.NODE],1,solver)
+problem.SolverGet([oc.ControlLoopIdentifiers.NODE],1,solver)
 solver.SolverEquationsGet(solverEquations)
-solverEquations.sparsityType = iron.SolverEquationsSparsityTypes.SPARSE
+solverEquations.SparsityTypeSet(oc.SolverEquationsSparsityTypes.SPARSE)
 equationsSetIndex = solverEquations.EquationsSetAdd(equationsSet)
 problem.SolverEquationsCreateFinish()
 
@@ -193,18 +254,18 @@ problem.SolverEquationsCreateFinish()
 #-----------------------------------------------------------------------------------------------------------
 
 # Create boundary conditions and set first and last nodes to 0.0 and 1.0
-boundaryConditions = iron.BoundaryConditions()
+boundaryConditions = oc.BoundaryConditions()
 solverEquations.BoundaryConditionsCreateStart(boundaryConditions)
 firstNodeNumber=1
-nodes = iron.Nodes()
+nodes = oc.Nodes()
 region.NodesGet(nodes)
 lastNodeNumber = nodes.numberOfNodes
-firstNodeDomain = decomposition.NodeDomainGet(firstNodeNumber,1)
-lastNodeDomain = decomposition.NodeDomainGet(lastNodeNumber,1)
+firstNodeDomain = decomposition.NodeDomainGet(1,firstNodeNumber)
+lastNodeDomain = decomposition.NodeDomainGet(1,lastNodeNumber)
 if firstNodeDomain == computationalNodeNumber:
-    boundaryConditions.SetNode(dependentField,iron.FieldVariableTypes.U,1,1,firstNodeNumber,1,iron.BoundaryConditionsTypes.FIXED,0.0)
+    boundaryConditions.SetNode(dependentField,oc.FieldVariableTypes.U,1,1,firstNodeNumber,1,oc.BoundaryConditionsTypes.FIXED,0.0)
 if lastNodeDomain == computationalNodeNumber:
-    boundaryConditions.SetNode(dependentField,iron.FieldVariableTypes.U,1,1,lastNodeNumber,1,iron.BoundaryConditionsTypes.FIXED,1.0)
+    boundaryConditions.SetNode(dependentField,oc.FieldVariableTypes.U,1,1,lastNodeNumber,1,oc.BoundaryConditionsTypes.FIXED,1.0)
 solverEquations.BoundaryConditionsCreateFinish()
 
 #-----------------------------------------------------------------------------------------------------------
@@ -218,21 +279,23 @@ problem.Solve()
 #-----------------------------------------------------------------------------------------------------------
 
 # Export results
-baseName = "laplace_equation"
+baseName = "LaplaceEquation"
 dataFormat = "PLAIN_TEXT"
 
-fml = iron.FieldMLIO()
+fml = oc.FieldMLIO()
 fml.OutputCreate(mesh, "", baseName, dataFormat)
-fml.OutputAddFieldNoType(baseName+".geometric", dataFormat, geometricField,iron.FieldVariableTypes.U, iron.FieldParameterSetTypes.VALUES)
-fml.OutputAddFieldNoType(baseName+".phi", dataFormat, dependentField,iron.FieldVariableTypes.U, iron.FieldParameterSetTypes.VALUES)
-fml.OutputWrite("laplace_equation.xml")
+fml.OutputAddFieldNoType(baseName+".geometric", dataFormat, geometricField,oc.FieldVariableTypes.U, oc.FieldParameterSetTypes.VALUES)
+fml.OutputAddFieldNoType(baseName+".phi", dataFormat, dependentField,oc.FieldVariableTypes.U, oc.FieldParameterSetTypes.VALUES)
+fml.OutputWrite("LaplaceEquation.xml")
 fml.Finalise()
 
-fields = iron.Fields()
+fields = oc.Fields()
 fields.CreateRegion(region)
-fields.NodesExport("laplace_equation","FORTRAN")
-fields.ElementsExport("laplace_equation","FORTRAN")
+fields.NodesExport("LaplaceEquation","FORTRAN")
+fields.ElementsExport("LaplaceEquation","FORTRAN")
 fields.Finalise()
 
-# Finalise OpenCMISS-Iron
-iron.Finalise()
+# Destroy the context
+context.Destroy()
+# Finalise OpenCMISS
+oc.Finalise()
